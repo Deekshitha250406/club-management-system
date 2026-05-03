@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ClubSpace — Login</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <style>
+    body { min-height: 100vh; display: flex; background: var(--grad-hero); }
+
+    .auth-wrap {
+      display: flex; min-height: 100vh; width: 100%;
+    }
+
+    /* Left visual panel */
+    .auth-visual {
+      flex: 1; background: linear-gradient(145deg, #0d1520 0%, #0d0a1a 40%, #0a1a10 100%);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 60px; position: relative; overflow: hidden;
+    }
+    .auth-visual::before {
+      content: ''; position: absolute; width: 600px; height: 600px;
+      background: radial-gradient(circle, rgba(255,107,53,.1) 0%, transparent 60%);
+      top: 50%; left: 50%; transform: translate(-50%,-50%);
+    }
+    .vis-content { position: relative; z-index: 1; max-width: 420px; }
+    .vis-logo { display: flex; align-items: center; gap: 12px; margin-bottom: 40px; }
+    .vis-mark { width: 46px; height: 46px; border-radius: 12px; background: var(--grad-orange); display: flex; align-items: center; justify-content: center; font-family: var(--ff-display); font-weight: 800; font-size: 1.2rem; color: #fff; box-shadow: var(--shadow-orange); }
+    .vis-brand { font-family: var(--ff-display); font-weight: 800; font-size: 1.3rem; color: #fff; }
+    .vis-tag { font-size: .72rem; color: rgba(255,255,255,.45); }
+    .vis-h1 { font-family: var(--ff-display); font-size: 2.6rem; font-weight: 800; color: #fff; line-height: 1.15; margin-bottom: 18px; }
+    .vis-h1 span { color: var(--orange); }
+    .vis-p { font-size: .92rem; color: rgba(255,255,255,.55); line-height: 1.75; margin-bottom: 36px; }
+    .vis-features { display: flex; flex-direction: column; gap: 16px; }
+    .vis-feat { display: flex; align-items: flex-start; gap: 13px; }
+    .feat-ico { width: 34px; height: 34px; background: rgba(255,107,53,.12); border: 1px solid rgba(255,107,53,.2); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--orange); font-size: .85rem; flex-shrink: 0; }
+    .feat-text h4 { font-size: .84rem; font-weight: 700; color: #fff; margin-bottom: 2px; font-family: var(--ff-display); }
+    .feat-text p { font-size: .74rem; color: rgba(255,255,255,.45); line-height: 1.5; }
+
+    /* Floating orbs */
+    .orb { position: absolute; border-radius: 50%; pointer-events: none; }
+    .orb1 { width: 350px; height: 350px; border: 1px solid rgba(255,107,53,.08); top: -80px; right: -80px; }
+    .orb2 { width: 220px; height: 220px; border: 1px solid rgba(72,149,239,.08); bottom: 60px; left: -60px; }
+    .orb3 { width: 80px; height: 80px; background: rgba(255,107,53,.04); top: 180px; left: 80px; }
+
+    /* Right auth panel */
+    .auth-panel {
+      width: 460px; flex-shrink: 0;
+      background: var(--bg2); display: flex; flex-direction: column;
+      justify-content: center; padding: 52px 44px;
+      overflow-y: auto; border-left: 1px solid var(--border);
+    }
+
+    .tab-row { display: flex; background: var(--bg4); border-radius: var(--r-sm); padding: 3px; margin-bottom: 26px; }
+    .tab-btn { flex: 1; padding: 9px; border: none; background: transparent; border-radius: 6px; font-size: .84rem; font-weight: 600; color: var(--text2); cursor: pointer; transition: var(--t); font-family: var(--ff-body); }
+    .tab-btn.active { background: var(--bg3); color: var(--text); box-shadow: var(--shadow-sm); }
+
+    .view { display: none; }
+    .view.show { display: block; }
+
+    .auth-h { font-family: var(--ff-display); font-size: 1.65rem; font-weight: 800; margin-bottom: 5px; }
+    .auth-sub { font-size: .84rem; color: var(--text2); margin-bottom: 26px; }
+
+    .demo-box { background: var(--orange-glow); border: 1px solid rgba(255,107,53,.22); border-radius: 10px; padding: 13px 15px; margin-bottom: 22px; }
+    .demo-box h4 { font-size: .72rem; font-weight: 700; color: var(--orange); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 9px; }
+    .demo-row { font-size: .75rem; color: var(--text2); display: flex; align-items: center; gap: 7px; margin-bottom: 5px; }
+    .demo-row:last-child { margin-bottom: 0; }
+    .demo-fill { color: var(--orange); font-weight: 600; cursor: pointer; text-decoration: underline; margin-left: 4px; }
+    .demo-fill:hover { color: var(--yellow); }
+
+    .role-grid { display: flex; gap: 9px; margin-bottom: 18px; }
+    .role-opt { flex: 1; padding: 13px 10px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--bg4); cursor: pointer; text-align: center; transition: var(--t); }
+    .role-opt:hover { border-color: var(--border2); }
+    .role-opt.sel { border-color: var(--orange); background: var(--orange-glow); }
+    .role-opt i { font-size: 1.4rem; color: var(--text2); display: block; margin-bottom: 6px; transition: var(--t); }
+    .role-opt.sel i { color: var(--orange); }
+    .role-opt span { font-size: .75rem; font-weight: 600; color: var(--text2); transition: var(--t); }
+    .role-opt.sel span { color: var(--orange); }
+
+    .pw-wrap { position: relative; }
+    .pw-toggle { position: absolute; right: 11px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text3); cursor: pointer; font-size: .82rem; transition: color .15s; }
+    .pw-toggle:hover { color: var(--text2); }
+
+    .auth-foot { text-align: center; font-size: .8rem; color: var(--text2); margin-top: 20px; }
+    .auth-link { color: var(--orange); font-weight: 600; cursor: pointer; }
+    .auth-link:hover { text-decoration: underline; }
+
+    @media (max-width: 900px) { .auth-visual { display: none; } .auth-panel { width: 100%; border-left: none; } }
+    @media (max-width: 480px) { .auth-panel { padding: 36px 22px; } }
+  </style>
+</head>
+<body>
+<div id="toasts"></div>
+<div class="auth-wrap">
+
+  <!-- Visual -->
+  <div class="auth-visual">
+    <div class="orb orb1"></div>
+    <div class="orb orb2"></div>
+    <div class="orb orb3"></div>
+    <div class="vis-content">
+      <div class="vis-logo">
+        <div class="vis-mark">CS</div>
+        <div>
+          <div class="vis-brand">ClubSpace</div>
+          <div class="vis-tag">College Club Management</div>
+        </div>
+      </div>
+      <h1 class="vis-h1">One platform for every <span>club</span> on campus.</h1>
+      <p class="vis-p">Admins, club leaders, and students — all in one place. Manage memberships, run events, upload photos, and build communities that matter.</p>
+      <div class="vis-features">
+        <div class="vis-feat"><div class="feat-ico"><i class="fa-solid fa-people-group"></i></div><div class="feat-text"><h4>Club Management</h4><p>Create clubs, assign leaders, track members across dance, music, tech, arts and more.</p></div></div>
+        <div class="vis-feat"><div class="feat-ico"><i class="fa-solid fa-calendar-star"></i></div><div class="feat-text"><h4>Event Publishing</h4><p>Each club can publish events with images, set seat limits, and manage registrations.</p></div></div>
+        <div class="vis-feat"><div class="feat-ico"><i class="fa-solid fa-image"></i></div><div class="feat-text"><h4>Image Uploads</h4><p>Upload club banners and event photos directly or paste a URL — your choice.</p></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Auth Panel -->
+  <div class="auth-panel">
+    <div class="tab-row">
+      <button class="tab-btn active" id="tabLogin"  onclick="switchTab('login')">Sign In</button>
+      <button class="tab-btn"        id="tabSignup" onclick="switchTab('signup')">Create Account</button>
+    </div>
+
+    <!-- Demo Box -->
+    <div class="demo-box">
+      <h4><i class="fa-solid fa-key"></i> &nbsp;Demo Credentials</h4>
+      <div class="demo-row"><i class="fa-solid fa-user-shield" style="color:var(--orange);width:14px"></i> Admin:<span class="demo-fill" onclick="fillDemo('admin')">admin@college.edu / admin123</span></div>
+      <div class="demo-row"><i class="fa-solid fa-star" style="color:var(--yellow);width:14px"></i> Leader:<span class="demo-fill" onclick="fillDemo('leader')">rithvik@college.edu / leader123</span></div>
+      <div class="demo-row"><i class="fa-solid fa-user-graduate" style="color:var(--blue);width:14px"></i> Student:<span class="demo-fill" onclick="fillDemo('student')">arjun@student.edu / student123</span></div>
+    </div>
+
+    <!-- Login -->
+    <div class="view show" id="loginView">
+      <h2 class="auth-h">Welcome back 👋</h2>
+      <p class="auth-sub">Sign in to access your dashboard.</p>
+      <form id="loginForm" onsubmit="doLogin(event)" novalidate>
+        <div class="form-group">
+          <label class="label">Email Address</label>
+          <input type="email" class="input" id="lEmail" placeholder="you@college.edu" />
+          <div class="err-msg"></div>
+        </div>
+        <div class="form-group">
+          <label class="label">Password</label>
+          <div class="pw-wrap">
+            <input type="password" class="input" id="lPass" placeholder="••••••••" />
+            <button type="button" class="pw-toggle" onclick="togglePw('lPass',this)"><i class="fa-solid fa-eye"></i></button>
+          </div>
+          <div class="err-msg"></div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block btn-lg" id="loginBtn">
+          <i class="fa-solid fa-arrow-right-to-bracket"></i> Sign In
+        </button>
+      </form>
+      <p class="auth-foot">No account? <span class="auth-link" onclick="switchTab('signup')">Create one</span></p>
+    </div>
+
+    <!-- Signup -->
+    <div class="view" id="signupView">
+      <h2 class="auth-h">Join ClubSpace</h2>
+      <p class="auth-sub">Create your account to get started.</p>
+
+      <div style="margin-bottom:18px">
+        <label class="label">I am a</label>
+        <div class="role-grid">
+          <div class="role-opt" id="rAdmin"   onclick="pickRole('admin')">   <i class="fa-solid fa-user-shield"></i>   <span>Admin</span>   </div>
+          <div class="role-opt" id="rLeader"  onclick="pickRole('leader')">  <i class="fa-solid fa-star"></i>          <span>Club Leader</span></div>
+          <div class="role-opt sel" id="rStudent" onclick="pickRole('student')"><i class="fa-solid fa-user-graduate"></i><span>Student</span>  </div>
+        </div>
+      </div>
+
+      <form id="signupForm" onsubmit="doSignup(event)" novalidate>
+        <div class="form-group">
+          <label class="label">Full Name</label>
+          <input type="text" class="input" id="sName" placeholder="Your full name" />
+          <div class="err-msg"></div>
+        </div>
+        <div class="form-group">
+          <label class="label">Email Address</label>
+          <input type="email" class="input" id="sEmail" placeholder="you@college.edu" />
+          <div class="err-msg"></div>
+        </div>
+        <div class="form-group">
+          <label class="label">Password</label>
+          <div class="pw-wrap">
+            <input type="password" class="input" id="sPass" placeholder="Min. 6 characters" />
+            <button type="button" class="pw-toggle" onclick="togglePw('sPass',this)"><i class="fa-solid fa-eye"></i></button>
+          </div>
+          <div class="err-msg"></div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block btn-lg" id="signupBtn">
+          <i class="fa-solid fa-user-plus"></i> Create Account
+        </button>
+      </form>
+      <p class="auth-foot">Already have an account? <span class="auth-link" onclick="switchTab('login')">Sign in</span></p>
+    </div>
+  </div>
+</div>
+
+<script src="js/auth.js"></script>
+<script src="js/clubs.js"></script>
+<script src="js/app.js"></script>
+<script>
+  initApp();
+  redirectIfLoggedIn();
+
+  let selRole = 'student';
+
+  function switchTab(tab) {
+    document.getElementById('loginView').classList.toggle('show', tab==='login');
+    document.getElementById('signupView').classList.toggle('show', tab==='signup');
+    document.getElementById('tabLogin').classList.toggle('active', tab==='login');
+    document.getElementById('tabSignup').classList.toggle('active', tab==='signup');
+  }
+
+  function pickRole(r) {
+    selRole = r;
+    ['admin','leader','student'].forEach(x => document.getElementById('r'+x.charAt(0).toUpperCase()+x.slice(1)).classList.toggle('sel', x===r));
+  }
+
+  function togglePw(id, btn) {
+    const el = document.getElementById(id);
+    const isText = el.type==='text';
+    el.type = isText ? 'password' : 'text';
+    btn.innerHTML = isText ? '<i class="fa-solid fa-eye"></i>' : '<i class="fa-solid fa-eye-slash"></i>';
+  }
+
+  function fillDemo(type) {
+    switchTab('login');
+    const creds = { admin:['admin@college.edu','admin123'], leader:['rithvik@college.edu','leader123'], student:['arjun@student.edu','student123'] };
+    document.getElementById('lEmail').value = creds[type][0];
+    document.getElementById('lPass').value  = creds[type][1];
+  }
+
+  function doLogin(e) {
+    e.preventDefault();
+    const em = document.getElementById('lEmail');
+    const pw = document.getElementById('lPass');
+    let ok = true;
+    if (!valEmail(em)) ok = false;
+    if (!valRequired(pw,'Password is required.')) ok = false;
+    if (!ok) return;
+    const btn = document.getElementById('loginBtn');
+    setBtnLoading(btn, true);
+    setTimeout(() => {
+      const res = login(em.value.trim(), pw.value);
+      setBtnLoading(btn, false);
+      if (res.ok) { toast('ok','Welcome back!',`Hello, ${res.user.name} 👋`); setTimeout(()=>location.href='dashboard.html',700); }
+      else toast('err','Login Failed', res.msg);
+    }, 550);
+  }
+
+  function doSignup(e) {
+    e.preventDefault();
+    const name = document.getElementById('sName');
+    const em   = document.getElementById('sEmail');
+    const pw   = document.getElementById('sPass');
+    let ok = true;
+    if (!valRequired(name,'Name is required.')) ok = false;
+    if (!valEmail(em)) ok = false;
+    if (pw.value.length < 6) {
+      pw.classList.add('err');
+      const err = pw.closest('.form-group').querySelector('.err-msg');
+      if (err) { err.textContent='Min. 6 characters.'; err.classList.add('show'); }
+      ok = false;
+    } else { pw.classList.remove('err'); pw.closest('.form-group').querySelector('.err-msg')?.classList.remove('show'); }
+    if (!ok) return;
+    const btn = document.getElementById('signupBtn');
+    setBtnLoading(btn, true);
+    setTimeout(() => {
+      const res = signup(name.value.trim(), em.value.trim(), pw.value, selRole);
+      setBtnLoading(btn, false);
+      if (res.ok) { toast('ok','Account Created!','Redirecting…'); setTimeout(()=>location.href='dashboard.html',800); }
+      else toast('err','Signup Failed', res.msg);
+    }, 550);
+  }
+</script>
+</body>
+</html>

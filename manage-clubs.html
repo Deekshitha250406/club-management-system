@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>ClubSpace — Manage Clubs</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <style>
+    .tab-strip{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:24px}
+    .strip-tab{padding:11px 20px;font-size:.86rem;font-weight:600;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;transition:var(--t);background:none;border-top:none;border-left:none;border-right:none;font-family:var(--ff-body)}
+    .strip-tab.active{color:var(--orange);border-bottom-color:var(--orange)}
+    .strip-tab:hover{color:var(--text)}
+    .section-panel{display:none}.section-panel.active{display:block}
+    .club-admin-row{display:flex;align-items:center;gap:14px;padding:14px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r-md);margin-bottom:9px;transition:var(--t)}
+    .club-admin-row:hover{border-color:var(--border2)}
+    .car-img{width:52px;height:52px;border-radius:9px;background:var(--bg4);flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:1.4rem}
+    .car-img img{width:100%;height:100%;object-fit:cover}
+    .car-info{flex:1;min-width:0}
+    .car-name{font-weight:700;font-size:.92rem;margin-bottom:4px}
+    .car-meta{font-size:.74rem;color:var(--text2)}
+    .car-actions{display:flex;gap:7px}
+    .ev-admin-row{display:flex;align-items:center;gap:12px;padding:12px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r-md);margin-bottom:8px;transition:var(--t)}
+    .ev-admin-row:hover{border-color:var(--border2)}
+    .ev-thumb{width:44px;height:44px;border-radius:8px;background:var(--bg4);flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:1.2rem}
+    .ev-thumb img{width:100%;height:100%;object-fit:cover}
+    .ev-r-info{flex:1;min-width:0}
+    .ev-r-title{font-weight:600;font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .ev-r-meta{font-size:.72rem;color:var(--text2)}
+    .form-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r-lg);padding:24px;margin-bottom:20px}
+    .form-card-title{font-family:var(--ff-display);font-size:.88rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;display:flex;align-items:center;gap:8px;margin-bottom:20px}
+    .form-card-title i{color:var(--orange)}
+  </style>
+</head>
+<body>
+<div id="toasts"></div>
+<div class="sb-overlay" id="sbOverlay"></div>
+<div class="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="sb-logo"><div class="sb-mark">CS</div><div><div class="sb-title">ClubSpace</div><div class="sb-sub">Club Management</div></div></div>
+    <nav class="sb-nav" id="sbNav"></nav>
+    <div class="sb-foot">
+      <div class="user-row">
+        <div class="u-avatar" id="sbAvatar">?</div>
+        <div class="u-info"><div class="u-name" id="sbName">…</div><div class="u-role" id="sbRole">role</div></div>
+        <button class="icon-btn" id="logoutBtn" title="Logout"><i class="fa-solid fa-right-from-bracket"></i></button>
+      </div>
+    </div>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <div class="tb-left">
+        <button class="icon-btn hamburger" id="hamburger"><i class="fa-solid fa-bars"></i></button>
+        <div><div class="tb-title" id="tbTitle">Manage</div><div class="tb-sub" id="tbSub"></div></div>
+      </div>
+      <div class="tb-right">
+        <button class="icon-btn" id="themeBtn"></button>
+        <a href="clubs.html" class="btn btn-ghost btn-sm"><i class="fa-solid fa-arrow-left"></i> Back</a>
+      </div>
+    </header>
+    <div class="body" id="pageBody"></div>
+  </div>
+</div>
+<script src="js/auth.js"></script>
+<script src="js/clubs.js"></script>
+<script src="js/app.js"></script>
+<script>
+let CU;
+// Image uploader instances (scoped to current form)
+let clubImgUploader = null, evImgUploader = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+  CU = requireAdminOrLeader();
+  if (!CU) return;
+  initApp(); populateUser(CU); buildNav(CU.role, CU); setActiveNav('manage-clubs');
+
+  if (CU.role === 'admin') renderAdmin();
+  else renderLeader();
+});
+
+/* ══════════════════════════════════════════════════════════════
+   ADMIN VIEW
+══════════════════════════════════════════════════════════════ */
+function renderAdmin() {
+  document.getElementById('tbTitle').textContent = 'Manage Clubs';
+  document.getElementById('tbSub').textContent = 'Create clubs, assign leaders, manage events';
+  document.getElementById('pageBody').innerHTML = `
+    <div class="tab-strip">
+      <button class="strip-tab active" onclick="showTab('tabClubs',this)">🏛️ Clubs</button>
+      <button class="strip-tab"        onclick="showTab('tabCreate',this)">➕ Create Club</button>
+      <button class="strip-tab"        onclick="showTab('tabLeaders',this)">⭐ Assign Leaders</button>
+    </div>
+    <div id="tabClubs"   class="section-panel active"></div>
+    <div id="tabCreate"  class="section-panel"></div>
+    <div id="tabLeaders" class="section-panel"></div>`;
+
+  renderAdminClubList();
+  renderCreateClubForm();
+  renderLeaderAssign();
+}
+
+function showTab(id, btn) {
+  document.querySelectorAll('.section-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.strip-tab').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+  // Re-init image uploaders when switching to create tab
+  if (id === 'tabCreate') {
+    setTimeout(() => {
+      const wrap = document.getElementById('clubImgWrap');
+      if (wrap && !wrap.querySelector('.img-tabs')) {
+        clubImgUploader = createImageUploader(wrap);
+      }
+    }, 50);
+  }
+}
+
+function renderAdminClubList() {
+  const clubs = getClubs();
+  const html = clubs.length ? clubs.map(c => {
+    const leader  = c.leaderId ? getUserById(c.leaderId) : null;
+    const count   = getMemberCount(c.id);
+    const evCount = getClubEvents(c.id).length;
+    return `
+      <div class="club-admin-row" id="carow_${c.id}">
+        <div class="car-img">${c.image?`<img src="${c.image}" loading="lazy" onerror="this.style.display='none'">`:''}${!c.image?catEmoji(c.category):''}</div>
+        <div class="car-info">
+          <div class="car-name">${c.name} <span class="cat-pill ${catClass(c.category)}" style="font-size:.62rem">${catLabel(c.category)}</span></div>
+          <div class="car-meta">
+            <i class="fa-solid fa-users" style="color:var(--orange);font-size:.65rem"></i> ${count} members &nbsp;·&nbsp;
+            <i class="fa-solid fa-calendar-days" style="color:var(--blue);font-size:.65rem"></i> ${evCount} events &nbsp;·&nbsp;
+            <i class="fa-solid fa-star" style="color:var(--yellow);font-size:.65rem"></i> ${leader?leader.name:'No leader'}
+          </div>
+        </div>
+        <div class="car-actions">
+          <button class="btn btn-ghost btn-sm" onclick="openAdminEditClub('${c.id}')"><i class="fa-solid fa-pen"></i> Edit</button>
+          <button class="btn btn-ghost btn-sm" onclick="openAdminManageEvents('${c.id}')"><i class="fa-solid fa-calendar-plus"></i> Events</button>
+          <button class="btn btn-danger btn-sm" onclick="doDeleteClub('${c.id}')"><i class="fa-solid fa-trash"></i></button>
+        </div>
+      </div>`;
+  }).join('')
+    : `<div class="empty"><i class="fa-solid fa-people-group"></i><h3>No clubs yet</h3><p>Create your first club using the Create tab.</p></div>`;
+  document.getElementById('tabClubs').innerHTML = `
+    <div class="pg-head"><div><div class="pg-title">All Clubs (${clubs.length})</div></div><button class="btn btn-ghost btn-sm" onclick="renderAdminClubList()"><i class="fa-solid fa-rotate"></i> Refresh</button></div>
+    ${html}`;
+}
+
+function renderCreateClubForm() {
+  document.getElementById('tabCreate').innerHTML = `
+    <div class="pg-head"><div><div class="pg-title">Create New Club</div><div class="pg-sub">Fill in the details below</div></div></div>
+    <div class="two-col" style="align-items:start">
+      <div>
+        <div class="form-card">
+          <div class="form-card-title"><i class="fa-solid fa-circle-info"></i> Basic Info</div>
+          <div class="form-group"><label class="label">Club Name *</label><input class="input" id="cName" placeholder="e.g. Taal Tadka Dance Club" maxlength="80"/><div class="err-msg"></div></div>
+          <div class="form-group"><label class="label">Description *</label><textarea class="input" id="cDesc" rows="4" placeholder="What is this club about? Who should join?" maxlength="500"></textarea><div class="err-msg"></div></div>
+          <div class="form-row">
+            <div class="form-group mb-0"><label class="label">Category *</label><select class="input" id="cCat"><option value="">Choose…</option>${catOptions()}</select><div class="err-msg"></div></div>
+            <div class="form-group mb-0"><label class="label">Founded Year</label><input class="input" id="cFounded" placeholder="e.g. 2019" maxlength="4"/></div>
+          </div>
+        </div>
+        <div class="form-card">
+          <div class="form-card-title"><i class="fa-solid fa-image"></i> Club Image</div>
+          <div id="clubImgWrap"></div>
+        </div>
+        <div class="form-card" style="padding-top:18px">
+          <div class="form-card-title"><i class="fa-solid fa-sliders"></i> Settings</div>
+          <div class="form-group mb-0"><label class="label">Member Limit</label><input type="number" class="input" id="cLimit" placeholder="Leave empty for unlimited" min="1"/></div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:4px">
+          <button class="btn btn-primary btn-lg" id="createClubBtn" onclick="doCreateClub()"><i class="fa-solid fa-circle-plus"></i> Create Club</button>
+          <button class="btn btn-ghost btn-lg" onclick="resetCreateForm()"><i class="fa-solid fa-rotate-left"></i> Reset</button>
+        </div>
+      </div>
+      <div>
+        <div class="form-card">
+          <div class="form-card-title"><i class="fa-solid fa-eye"></i> Preview</div>
+          <div style="background:var(--bg4);border-radius:var(--r-md);height:100px;display:flex;align-items:center;justify-content:center;font-size:2.5rem;margin-bottom:12px;overflow:hidden;position:relative" id="prevBanner">
+            <span id="prevEmoji">🎓</span>
+            <img id="prevImg" src="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none" onerror="this.style.display='none'"/>
+          </div>
+          <div style="font-family:var(--ff-display);font-weight:700;margin-bottom:5px" id="prevName">Club Name</div>
+          <div style="font-size:.78rem;color:var(--text2);margin-bottom:10px" id="prevDesc">Description will appear here…</div>
+          <div id="prevCat"></div>
+        </div>
+        <div class="form-card">
+          <div class="form-card-title"><i class="fa-solid fa-lightbulb"></i> Tips</div>
+          <ul style="font-size:.78rem;color:var(--text2);padding-left:14px;list-style:disc;display:flex;flex-direction:column;gap:6px">
+            <li>Use a vibrant cover photo (16:9 works best).</li>
+            <li>Write a description that excites potential members.</li>
+            <li>Set a member limit to keep the club manageable.</li>
+            <li>Assign a leader after creating the club.</li>
+          </ul>
+        </div>
+      </div>
+    </div>`;
+
+  // Init image uploader for create form
+  clubImgUploader = createImageUploader(document.getElementById('clubImgWrap'), {
+    previewHeight: '120px',
+    onChange: v => {
+      const img = document.getElementById('prevImg');
+      const emoji = document.getElementById('prevEmoji');
+      if (v) { img.src=v; img.style.display='block'; emoji.style.display='none'; }
+      else { img.style.display='none'; emoji.style.display='block'; }
+    }
+  });
+
+  // Live preview listeners
+  ['cName','cDesc','cCat'].forEach(id => {
+    document.getElementById(id)?.addEventListener('input', updateCreatePreview);
+    document.getElementById(id)?.addEventListener('change', updateCreatePreview);
+  });
+}
+
+function updateCreatePreview() {
+  const name = document.getElementById('cName')?.value || 'Club Name';
+  const desc = document.getElementById('cDesc')?.value || 'Description will appear here…';
+  const cat  = document.getElementById('cCat')?.value  || '';
+  document.getElementById('prevName').textContent = name;
+  document.getElementById('prevDesc').textContent = desc;
+  document.getElementById('prevCat').innerHTML = cat ? `<span class="cat-pill ${catClass(cat)}">${catEmoji(cat)} ${catLabel(cat)}</span>` : '';
+  if (cat) document.getElementById('prevEmoji').textContent = catEmoji(cat);
+}
+
+function doCreateClub() {
+  const name = document.getElementById('cName');
+  const desc = document.getElementById('cDesc');
+  const cat  = document.getElementById('cCat');
+  let ok = true;
+  if (!valRequired(name,'Club name is required.')) ok=false;
+  if (!valRequired(desc,'Description is required.')) ok=false;
+  if (!valRequired(cat,'Please select a category.')) ok=false;
+  if (!ok) return toast('warn','Incomplete','Fill in all required fields.');
+
+  const btn = document.getElementById('createClubBtn');
+  setBtnLoading(btn, true);
+  setTimeout(() => {
+    const club = createClub({
+      name: name.value.trim(),
+      description: desc.value.trim(),
+      category: cat.value,
+      founded: document.getElementById('cFounded').value.trim(),
+      memberLimit: parseInt(document.getElementById('cLimit').value)||null,
+      image: clubImgUploader?.getValue() || null,
+      leaderId: null
+    });
+    setBtnLoading(btn, false);
+    toast('ok','Club Created!',`"${club.name}" is live.`);
+    resetCreateForm();
+    renderAdminClubList();
+    // Switch to clubs tab
+    document.querySelectorAll('.strip-tab')[0].click();
+  }, 600);
+}
+
+function resetCreateForm() {
+  ['cName','cDesc','cCat','cFounded','cLimit'].forEach(id => {
+    const el = document.getElementById(id); if(el) el.value='';
+  });
+  clubImgUploader?.clearPreview();
+  updateCreatePreview();
+}
+
+function renderLeaderAssign() {
+  const leaders = getUsers().filter(u => u.role==='leader');
+  const clubs   = getClubs();
+
+  const rows = leaders.map(l => {
+    const club = l.clubId ? getClubById(l.clubId) : null;
+    return `
+      <div class="club-admin-row" style="flex-wrap:wrap;gap:10px">
+        <div class="u-avatar">${getInitials(l.name)}</div>
+        <div class="car-info">
+          <div class="car-name">${l.name}</div>
+          <div class="car-meta">${l.email}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">
+          <select class="input" style="min-width:180px" id="leaderSel_${l.id}">
+            <option value="">— No Club —</option>
+            ${clubs.map(c=>`<option value="${c.id}" ${l.clubId===c.id?'selected':''}>${c.name}</option>`).join('')}
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="doAssignLeader('${l.id}')"><i class="fa-solid fa-link"></i> Assign</button>
+        </div>
+        ${club ? `<span class="badge badge-orange" style="margin-left:auto"><i class="fa-solid fa-people-group"></i> ${club.name}</span>` : `<span class="badge" style="background:rgba(124,138,171,.1);color:var(--text2)">Unassigned</span>`}
+      </div>`;
+  }).join('') || `<div class="empty"><i class="fa-solid fa-star"></i><h3>No leaders yet</h3><p>Leaders can sign up on the login page with the "Club Leader" role.</p></div>`;
+
+  document.getElementById('tabLeaders').innerHTML = `
+    <div class="pg-head"><div><div class="pg-title">Assign Leaders (${leaders.length})</div><div class="pg-sub">Link each leader to a club</div></div></div>
+    ${rows}`;
+}
+
+function doAssignLeader(leaderId) {
+  const sel   = document.getElementById(`leaderSel_${leaderId}`);
+  const clubId = sel.value || null;
+  assignLeaderToClub(leaderId, clubId);
+  // Also update club.leaderId
+  const clubs = getClubs();
+  // Remove this leader from any club they were previously leading
+  clubs.forEach(c => { if (c.leaderId === leaderId) c.leaderId = null; });
+  if (clubId) {
+    const ci = clubs.findIndex(c=>c.id===clubId);
+    if (ci !== -1) clubs[ci].leaderId = leaderId;
+    // Add as member if not already
+    if (!isClubMember(leaderId, clubId)) {
+      const mems = getMembers();
+      mems.push({ id:'m_'+Date.now(), userId:leaderId, clubId, role:'leader', joinedAt:now() });
+      saveMembers(mems);
+    }
+  }
+  saveClubs(clubs);
+  const name = getUserById(leaderId)?.name || 'Leader';
+  const clubName = clubId ? getClubById(clubId)?.name : 'None';
+  toast('ok','Assigned!',`${name} → ${clubName}`);
+  renderLeaderAssign();
+  renderAdminClubList();
+}
+
+function doDeleteClub(clubId) {
+  const c = getClubById(clubId);
+  if (!c) return;
+  confirmAction(`Delete club "<strong>${c.name}</strong>"? All events and memberships will also be removed.`, () => {
+    deleteClub(clubId);
+    toast('info','Deleted',`"${c.name}" removed.`);
+    renderAdminClubList();
+  });
+}
+
+// ── Admin: Edit club modal ──────────────────────────────────
+function openAdminEditClub(clubId) {
+  const c = getClubById(clubId);
+  if (!c) return;
+  let editUploader = null;
+
+  // Build leader options — all users with role=leader
+  const allLeaders = getUsers().filter(u => u.role === 'leader');
+  const leaderOptions = `<option value="">— No Leader —</option>` +
+    allLeaders.map(l => {
+      const alreadyLeads = getClubs().find(cl => cl.leaderId === l.id && cl.id !== clubId);
+      const label = l.name + (alreadyLeads ? ` (leads ${alreadyLeads.name})` : '');
+      return `<option value="${l.id}" ${c.leaderId === l.id ? 'selected' : ''}>${label}</option>`;
+    }).join('');
+
+  // Current leader info chip
+  const curLeader = c.leaderId ? getUserById(c.leaderId) : null;
+  const leaderChip = curLeader
+    ? `<div style="display:flex;align-items:center;gap:8px;margin-top:8px;padding:8px 11px;background:var(--orange-glow);border:1px solid rgba(255,107,53,.2);border-radius:8px">
+         <div class="u-avatar" style="width:26px;height:26px;font-size:.68rem">${getInitials(curLeader.name)}</div>
+         <div style="font-size:.78rem;font-weight:600;color:var(--orange)">${curLeader.name}</div>
+         <span class="badge badge-orange" style="margin-left:auto">Current Leader</span>
+       </div>`
+    : `<div style="font-size:.76rem;color:var(--text3);margin-top:6px"><i class="fa-solid fa-circle-exclamation"></i> No leader assigned yet</div>`;
+
+  const m = mkModal('editClubModal','Edit Club',`
+    <div class="form-group"><label class="label">Club Name *</label><input class="input" id="ecName" value="${c.name}" maxlength="80"/><div class="err-msg"></div></div>
+    <div class="form-group"><label class="label">Description *</label><textarea class="input" id="ecDesc" rows="3">${c.description}</textarea><div class="err-msg"></div></div>
+    <div class="form-row">
+      <div class="form-group mb-0"><label class="label">Category *</label><select class="input" id="ecCat">${catOptions(c.category)}</select><div class="err-msg"></div></div>
+      <div class="form-group mb-0"><label class="label">Founded</label><input class="input" id="ecFounded" value="${c.founded||''}" maxlength="4"/></div>
+    </div>
+    <div class="form-group" style="margin-top:14px"><label class="label">Member Limit</label><input type="number" class="input" id="ecLimit" value="${c.memberLimit||''}" min="1"/></div>
+    <div class="form-group" style="border-top:1px solid var(--border);padding-top:16px;margin-top:4px">
+      <label class="label"><i class="fa-solid fa-star" style="color:var(--yellow)"></i> &nbsp;Assign Club Leader</label>
+      <select class="input" id="ecLeader">${leaderOptions}</select>
+      ${leaderChip}
+      <div style="font-size:.72rem;color:var(--text3);margin-top:6px"><i class="fa-solid fa-circle-info"></i> Only users who signed up as "Club Leader" appear here. The selected person will be added as a member automatically.</div>
+    </div>
+    <div class="form-group mb-0"><label class="label">Club Image</label><div id="ecImgWrap"></div></div>`,
+    `<button class="btn btn-ghost" onclick="closeModal('editClubModal')">Cancel</button>
+     <button class="btn btn-primary" id="ecSubmit"><i class="fa-solid fa-save"></i> Save Changes</button>`);
+
+  editUploader = createImageUploader(document.getElementById('ecImgWrap'), { previewHeight:'130px' });
+  if (c.image) editUploader.setValue(c.image);
+
+  document.getElementById('ecSubmit').onclick = () => {
+    const name = document.getElementById('ecName');
+    const desc = document.getElementById('ecDesc');
+    const cat  = document.getElementById('ecCat');
+    let ok = true;
+    if (!valRequired(name)) ok=false;
+    if (!valRequired(desc)) ok=false;
+    if (!valRequired(cat,'Choose a category.')) ok=false;
+    if (!ok) return toast('warn','Incomplete','Fill required fields.');
+
+    const newLeaderId = document.getElementById('ecLeader').value || null;
+
+    // ── Handle leader change ──
+    if (newLeaderId !== c.leaderId) {
+      const clubs = getClubs();
+
+      // Unlink old leader from this club in users
+      if (c.leaderId) assignLeaderToClub(c.leaderId, null);
+
+      // Unlink new leader from any other club they may lead
+      if (newLeaderId) {
+        const prevClub = clubs.find(cl => cl.leaderId === newLeaderId && cl.id !== clubId);
+        if (prevClub) {
+          updateClub(prevClub.id, { leaderId: null });
+          assignLeaderToClub(newLeaderId, null);
+        }
+        // Assign new leader to this club in users table
+        assignLeaderToClub(newLeaderId, clubId);
+        // Add as member with leader role if not already
+        if (!isClubMember(newLeaderId, clubId)) {
+          const mems = getMembers();
+          mems.push({ id:'m_'+Date.now(), userId:newLeaderId, clubId, role:'leader', joinedAt:now() });
+          saveMembers(mems);
+        } else {
+          // Update existing membership role to leader
+          const mems = getMembers();
+          const mi = mems.findIndex(m => m.userId===newLeaderId && m.clubId===clubId);
+          if (mi !== -1) mems[mi].role = 'leader';
+          saveMembers(mems);
+        }
+      }
+    }
+
+    updateClub(clubId, {
+      name: name.value.trim(), description: desc.value.trim(), category: cat.value,
+      founded: document.getElementById('ecFounded').value.trim(),
+      memberLimit: parseInt(document.getElementById('ecLimit').value)||null,
+      image: editUploader.getValue() || c.image || null,
+      leaderId: newLeaderId
+    });
+
+    closeModal('editClubModal');
+    const leaderName = newLeaderId ? getUserById(newLeaderId)?.name : 'None';
+    toast('ok','Club Updated!', newLeaderId !== c.leaderId ? `Leader set to ${leaderName}` : 'Changes saved.');
+    renderAdminClubList();
+  };
+}
+
+// ── Admin: Manage events for a club ────────────────────────
+function openAdminManageEvents(clubId) {
+  const c  = getClubById(clubId);
+  const evs = getClubEvents(clubId);
+  let addUploader = null;
+
+  const evRows = evs.map(e => `
+    <div class="ev-admin-row" id="evrow_${e.id}">
+      <div class="ev-thumb">${e.image?`<img src="${e.image}" loading="lazy" onerror="this.style.display='none'">`:catEmoji(c?.category||'other')}</div>
+      <div class="ev-r-info">
+        <div class="ev-r-title">${e.title}</div>
+        <div class="ev-r-meta"><i class="fa-solid fa-calendar" style="color:var(--orange);font-size:.65rem"></i> ${fmtDate(e.date)} · ${getRegCount(e.id)} registered</div>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-ghost btn-sm" onclick="openEditEventModal('${e.id}')"><i class="fa-solid fa-pen"></i></button>
+        <button class="btn btn-danger btn-sm" onclick="confirmDeleteEvent('${e.id}')"><i class="fa-solid fa-trash"></i></button>
+      </div>
+    </div>`).join('') || '<p style="color:var(--text3);font-size:.82rem;margin-bottom:16px">No events yet.</p>';
+
+  const m = mkModal('manageEvModal',`Events — ${c?.name}`,`
+    <div style="margin-bottom:20px">
+      <div style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:12px">Existing Events (${evs.length})</div>
+      ${evRows}
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:18px">
+      <div style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:14px">Add New Event</div>
+      <div class="form-group"><label class="label">Title *</label><input class="input" id="aevTitle" placeholder="Event title" maxlength="100"/><div class="err-msg"></div></div>
+      <div class="form-group"><label class="label">Description *</label><textarea class="input" id="aevDesc" rows="2" maxlength="400"></textarea><div class="err-msg"></div></div>
+      <div class="form-row">
+        <div class="form-group mb-0"><label class="label">Date *</label><input type="date" class="input" id="aevDate"/><div class="err-msg"></div></div>
+        <div class="form-group mb-0"><label class="label">Time *</label><input type="time" class="input" id="aevTime"/><div class="err-msg"></div></div>
+      </div>
+      <div class="form-group" style="margin-top:14px"><label class="label">Venue *</label><input class="input" id="aevVenue" placeholder="e.g. Main Auditorium"/><div class="err-msg"></div></div>
+      <div class="form-group"><label class="label">Max Seats</label><input type="number" class="input" id="aevSeats" placeholder="Unlimited" min="1"/></div>
+      <div class="form-group mb-0"><label class="label">Event Image</label><div id="aevImgWrap"></div></div>
+    </div>`,
+    `<button class="btn btn-ghost" onclick="closeModal('manageEvModal')">Close</button>
+     <button class="btn btn-primary" id="aevSubmit"><i class="fa-solid fa-plus"></i> Add Event</button>`);
+
+  addUploader = createImageUploader(document.getElementById('aevImgWrap'), { previewHeight:'130px' });
+  document.getElementById('aevDate').min = new Date().toISOString().split('T')[0];
+
+  document.getElementById('aevSubmit').onclick = () => doAddEvent(clubId, addUploader);
+
+  var refreshCards = () => {};
+}
+
+/* ══════════════════════════════════════════════════════════════
+   LEADER VIEW
+══════════════════════════════════════════════════════════════ */
+function renderLeader() {
+  const freshUser = getUserById(CU.id) || CU;
+  const clubId    = freshUser.clubId;
+  const club      = clubId ? getClubById(clubId) : null;
+
+  if (!club) {
+    document.getElementById('tbTitle').textContent = 'My Club';
+    document.getElementById('pageBody').innerHTML = `
+      <div class="welcome" style="flex-direction:column;align-items:flex-start">
+        <h2>No Club Assigned Yet</h2>
+        <p>You haven't been assigned to a club. Please contact the admin.</p>
+      </div>`;
+    return;
+  }
+
+  document.getElementById('tbTitle').textContent = club.name;
+  document.getElementById('tbSub').textContent = `${catLabel(club.category)} · Leader Dashboard`;
+
+  document.getElementById('pageBody').innerHTML = `
+    <div class="tab-strip">
+      <button class="strip-tab active" onclick="showTab('ltInfo',this)">ℹ️ Club Info</button>
+      <button class="strip-tab"        onclick="showTab('ltEvents',this)">🗓️ Events</button>
+      <button class="strip-tab"        onclick="showTab('ltMembers',this)">👥 Members</button>
+    </div>
+    <div id="ltInfo"    class="section-panel active"></div>
+    <div id="ltEvents"  class="section-panel"></div>
+    <div id="ltMembers" class="section-panel"></div>`;
+
+  renderLeaderInfo(club);
+  renderLeaderEvents(club);
+  renderLeaderMembers(club);
+}
+
+function renderLeaderInfo(club) {
+  let editUploader = null;
+  document.getElementById('ltInfo').innerHTML = `
+    <div class="two-col" style="align-items:start">
+      <div class="form-card">
+        <div class="form-card-title"><i class="fa-solid fa-pen-to-square"></i> Edit Club Details</div>
+        <div class="form-group"><label class="label">Club Name *</label><input class="input" id="liName" value="${club.name}" maxlength="80"/><div class="err-msg"></div></div>
+        <div class="form-group"><label class="label">Description *</label><textarea class="input" id="liDesc" rows="4">${club.description}</textarea><div class="err-msg"></div></div>
+        <div class="form-group mb-0"><label class="label">Club Image</label><div id="liImgWrap"></div></div>
+        <div style="margin-top:18px"><button class="btn btn-primary" id="liSave" onclick="doLeaderSaveInfo('${club.id}')"><i class="fa-solid fa-save"></i> Save Changes</button></div>
+      </div>
+      <div>
+        <div class="form-card">
+          <div class="form-card-title"><i class="fa-solid fa-chart-bar"></i> Club Stats</div>
+          <div class="stats-row" style="grid-template-columns:1fr 1fr;margin-bottom:0">
+            <div class="stat" style="flex-direction:column;align-items:flex-start;gap:4px"><div class="stat-val">${getMemberCount(club.id)}</div><div class="stat-lbl">Members</div></div>
+            <div class="stat" style="flex-direction:column;align-items:flex-start;gap:4px"><div class="stat-val">${getClubEvents(club.id).length}</div><div class="stat-lbl">Events</div></div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  editUploader = createImageUploader(document.getElementById('liImgWrap'), { previewHeight:'140px' });
+  if (club.image) editUploader.setValue(club.image);
+
+  window._leaderEditUploader = editUploader;
+}
+
+function doLeaderSaveInfo(clubId) {
+  const name = document.getElementById('liName');
+  const desc = document.getElementById('liDesc');
+  let ok = true;
+  if (!valRequired(name)) ok=false;
+  if (!valRequired(desc)) ok=false;
+  if (!ok) return toast('warn','Incomplete','Fill required fields.');
+  const club = getClubById(clubId);
+  updateClub(clubId, {
+    name: name.value.trim(), description: desc.value.trim(),
+    image: window._leaderEditUploader?.getValue() || club?.image || null
+  });
+  toast('ok','Saved!','Club details updated.');
+}
+
+function renderLeaderEvents(club) {
+  let addUp = null;
+  const evs = getClubEvents(club.id);
+  const evRows = evs.map(e => `
+    <div class="ev-admin-row" id="evrow_${e.id}">
+      <div class="ev-thumb">${e.image?`<img src="${e.image}" loading="lazy" onerror="this.style.display='none'">`:catEmoji(club.category)}</div>
+      <div class="ev-r-info">
+        <div class="ev-r-title">${e.title}</div>
+        <div class="ev-r-meta"><i class="fa-solid fa-calendar" style="color:var(--orange);font-size:.65rem"></i> ${fmtDate(e.date)} &nbsp; <i class="fa-solid fa-users" style="color:var(--blue);font-size:.65rem"></i> ${getRegCount(e.id)} registered</div>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-ghost btn-sm" onclick="openEditEventModal('${e.id}')"><i class="fa-solid fa-pen"></i></button>
+        <button class="btn btn-danger btn-sm" onclick="confirmDeleteLeaderEvent('${e.id}','${club.id}')"><i class="fa-solid fa-trash"></i></button>
+      </div>
+    </div>`).join('') || `<p style="color:var(--text3);font-size:.82rem;margin-bottom:18px">No events yet. Add your first one below!</p>`;
+
+  document.getElementById('ltEvents').innerHTML = `
+    <div class="two-col" style="align-items:start">
+      <div>
+        <div class="pg-head"><div class="pg-title">Events (${evs.length})</div></div>
+        ${evRows}
+      </div>
+      <div class="form-card">
+        <div class="form-card-title"><i class="fa-solid fa-circle-plus"></i> Add New Event</div>
+        <div class="form-group"><label class="label">Title *</label><input class="input" id="levTitle" placeholder="Event title" maxlength="100"/><div class="err-msg"></div></div>
+        <div class="form-group"><label class="label">Description *</label><textarea class="input" id="levDesc" rows="3" maxlength="400"></textarea><div class="err-msg"></div></div>
+        <div class="form-row">
+          <div class="form-group mb-0"><label class="label">Date *</label><input type="date" class="input" id="levDate"/><div class="err-msg"></div></div>
+          <div class="form-group mb-0"><label class="label">Time *</label><input type="time" class="input" id="levTime"/><div class="err-msg"></div></div>
+        </div>
+        <div class="form-group" style="margin-top:14px"><label class="label">Venue *</label><input class="input" id="levVenue" placeholder="e.g. Main Auditorium"/><div class="err-msg"></div></div>
+        <div class="form-group"><label class="label">Max Seats</label><input type="number" class="input" id="levSeats" placeholder="Unlimited" min="1"/></div>
+        <div class="form-group mb-0"><label class="label">Event Image</label><div id="levImgWrap"></div></div>
+        <div style="margin-top:16px"><button class="btn btn-primary btn-block" id="levSubmit" onclick="doLeaderAddEvent('${club.id}')"><i class="fa-solid fa-plus"></i> Add Event</button></div>
+      </div>
+    </div>`;
+
+  const min = new Date().toISOString().split('T')[0];
+  document.getElementById('levDate').min = min;
+  window._levImgUploader = createImageUploader(document.getElementById('levImgWrap'), { previewHeight:'120px' });
+}
+
+function doLeaderAddEvent(clubId) {
+  doAddEvent(clubId, window._levImgUploader, () => {
+    const club = getClubById(clubId);
+    renderLeaderEvents(club);
+  });
+}
+
+function confirmDeleteLeaderEvent(eventId, clubId) {
+  const e = getEventById(eventId);
+  confirmAction(`Delete "<strong>${e?.title}</strong>"?`, () => {
+    deleteEvent(eventId);
+    toast('info','Deleted','Event removed.');
+    renderLeaderEvents(getClubById(clubId));
+  });
+}
+
+function renderLeaderMembers(club) {
+  const members = getClubMembers(club.id);
+  const users   = getUsers();
+  const rows = members.map(m => {
+    const u = getUserById(m.userId)||{name:'?',email:'-'};
+    return `<div class="member-row">
+      <div class="m-avatar">${getInitials(u.name)}</div>
+      <div class="m-info"><div class="m-name">${u.name}</div><div class="m-email">${u.email}</div></div>
+      <span class="badge ${m.role==='leader'?'badge-orange':'badge-blue'}">${m.role}</span>
+      ${m.role!=='leader' ? `<button class="btn btn-danger btn-sm" onclick="doRemoveMember('${m.userId}','${club.id}')"><i class="fa-solid fa-user-minus"></i></button>` : ''}
+    </div>`;
+  }).join('') || `<div class="empty" style="padding:28px 0"><i class="fa-solid fa-users"></i><h3>No members yet</h3><p>Students can join your club from the Clubs page.</p></div>`;
+
+  document.getElementById('ltMembers').innerHTML = `
+    <div class="pg-head"><div class="pg-title">Members (${members.length})</div></div>
+    <div class="card"><div class="card-body"><div class="member-list">${rows}</div></div></div>`;
+}
+
+function doRemoveMember(userId, clubId) {
+  const u = getUserById(userId);
+  confirmAction(`Remove <strong>${u?.name}</strong> from this club?`, () => {
+    removeMember(userId, clubId);
+    toast('info','Removed',`${u?.name} has been removed.`);
+    renderLeaderMembers(getClubById(clubId));
+  });
+}
+
+/* ══════════════════════════════════════════════════════════════
+   SHARED: Add event helper
+══════════════════════════════════════════════════════════════ */
+function doAddEvent(clubId, uploader, onSuccess) {
+  const titleEl = document.getElementById('aevTitle') || document.getElementById('levTitle');
+  const descEl  = document.getElementById('aevDesc')  || document.getElementById('levDesc');
+  const dateEl  = document.getElementById('aevDate')  || document.getElementById('levDate');
+  const timeEl  = document.getElementById('aevTime')  || document.getElementById('levTime');
+  const venueEl = document.getElementById('aevVenue') || document.getElementById('levVenue');
+  const seatsEl = document.getElementById('aevSeats') || document.getElementById('levSeats');
+
+  let ok = true;
+  [titleEl, descEl, dateEl, timeEl, venueEl].forEach(el => { if(el && !valRequired(el)) ok=false; });
+  if (!ok) return toast('warn','Incomplete','Fill in all required fields.');
+
+  const btn = document.getElementById('aevSubmit') || document.getElementById('levSubmit');
+  if (btn) setBtnLoading(btn, true);
+
+  setTimeout(() => {
+    const ev = createEvent({
+      clubId,
+      title:       titleEl.value.trim(),
+      description: descEl.value.trim(),
+      date:        dateEl.value,
+      time:        timeEl.value,
+      venue:       venueEl.value.trim(),
+      maxSeats:    parseInt(seatsEl?.value)||null,
+      image:       uploader?.getValue() || null,
+      createdBy:   CU.id
+    });
+    if (btn) setBtnLoading(btn, false);
+    toast('ok','Event Added!',`"${ev.title}" is live.`);
+    // Clear fields
+    [titleEl,descEl,dateEl,timeEl,venueEl].forEach(el => { if(el) el.value=''; });
+    if (seatsEl) seatsEl.value = '';
+    uploader?.clearPreview();
+    if (onSuccess) onSuccess();
+    else { renderAdminClubList(); }
+  }, 500);
+}
+
+var refreshCards = () => {};
+</script>
+</body>
+</html>

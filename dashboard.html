@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>ClubSpace — Dashboard</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <style>
+    .act-log{display:flex;flex-direction:column}
+    .act-item{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+    .act-item:last-child{border-bottom:none}
+    .act-dot{width:7px;height:7px;border-radius:50%;background:var(--orange);margin-top:7px;flex-shrink:0}
+    .act-text{font-size:.8rem;color:var(--text2);line-height:1.5}
+    .act-time{font-size:.7rem;color:var(--text3);margin-top:2px}
+    .my-club-card{display:flex;align-items:center;gap:12px;padding:12px;background:var(--bg4);border-radius:var(--r-md);margin-bottom:8px;border:1px solid transparent;transition:var(--t)}
+    .my-club-card:hover{border-color:var(--border)}
+    .my-club-emoji{font-size:1.6rem;width:40px;text-align:center;flex-shrink:0}
+    .my-club-info{flex:1;min-width:0}
+    .my-club-name{font-size:.88rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .my-club-stat{font-size:.73rem;color:var(--text2)}
+    .quick-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  </style>
+</head>
+<body>
+<div id="toasts"></div>
+<div class="sb-overlay" id="sbOverlay"></div>
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sb-logo">
+      <div class="sb-mark">CS</div>
+      <div><div class="sb-title">ClubSpace</div><div class="sb-sub">Club Management</div></div>
+    </div>
+    <nav class="sb-nav" id="sbNav"></nav>
+    <div class="sb-foot">
+      <div class="user-row">
+        <div class="u-avatar" id="sbAvatar">?</div>
+        <div class="u-info">
+          <div class="u-name" id="sbName">…</div>
+          <div class="u-role" id="sbRole">role</div>
+        </div>
+        <button class="icon-btn" id="logoutBtn" title="Logout"><i class="fa-solid fa-right-from-bracket"></i></button>
+      </div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="tb-left">
+        <button class="icon-btn hamburger" id="hamburger"><i class="fa-solid fa-bars"></i></button>
+        <div>
+          <div class="tb-title" id="tbTitle">Dashboard</div>
+          <div class="tb-sub" id="tbDate"></div>
+        </div>
+      </div>
+      <div class="tb-right">
+        <button class="icon-btn" id="themeBtn"></button>
+      </div>
+    </header>
+    <div class="body" id="pageBody"></div>
+  </div>
+</div>
+
+<script src="js/auth.js"></script>
+<script src="js/clubs.js"></script>
+<script src="js/app.js"></script>
+<script>
+let CU;
+document.addEventListener('DOMContentLoaded', () => {
+  CU = requireAuth();
+  if (!CU) return;
+  initApp();
+  populateUser(CU);
+  buildNav(CU.role, CU);
+  setActiveNav('dashboard');
+  document.getElementById('tbDate').textContent = new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+
+  if (CU.role === 'admin')  renderAdmin();
+  else if (CU.role === 'leader') renderLeader();
+  else renderStudent();
+});
+
+/* ── ADMIN DASHBOARD ──────────────────────────────────────── */
+function renderAdmin() {
+  const clubs = getClubs(), evs = getEvents(), regs = getRegs(), users = getUsers();
+  const t = new Date(); t.setHours(0,0,0,0);
+  const upcoming = evs.filter(e => new Date(e.date) >= t);
+  const students = users.filter(u => u.role === 'student').length;
+
+  // Category breakdown
+  const catCounts = {};
+  clubs.forEach(c => { catCounts[c.category] = (catCounts[c.category]||0)+1; });
+  const maxC = Math.max(...Object.values(catCounts), 1);
+  const catBars = Object.entries(catCounts).map(([cat, n]) =>
+    `<div style="display:flex;align-items:center;gap:10px;margin-bottom:9px">
+       <span style="font-size:.76rem;color:var(--text2);width:75px;flex-shrink:0">${catLabel(cat)}</span>
+       <div style="flex:1;height:5px;background:var(--bg4);border-radius:3px;overflow:hidden">
+         <div style="width:${n/maxC*100}%;height:100%;border-radius:3px;background:var(--orange);transition:width 1s"></div>
+       </div>
+       <span style="font-size:.72rem;color:var(--text3);width:18px;text-align:right">${n}</span>
+     </div>`).join('');
+
+  const recentRegs = regs.slice(-5).reverse().map(r => {
+    const u = getUsers().find(x=>x.id===r.userId)||{name:'?'};
+    const e = getEventById(r.eventId)||{title:'Deleted'};
+    return `<div class="act-item"><div class="act-dot"></div>
+      <div><div class="act-text"><strong>${u.name}</strong> registered for <em>${e.title}</em></div>
+      <div class="act-time">${new Date(r.registeredAt).toLocaleString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</div></div>
+    </div>`;
+  }).join('') || '<p style="color:var(--text3);font-size:.82rem;padding:8px 0">No activity yet.</p>';
+
+  const upcHtml = upcoming.slice(0,5).map(e => {
+    const dm = getDayMon(e.date);
+    const c  = getClubById(e.clubId)||{name:''};
+    return `<div class="upc-item">
+      <div class="upc-date"><div class="upc-day">${dm.day}</div><div class="upc-mon">${dm.mon}</div></div>
+      <div class="upc-info">
+        <div class="upc-name">${e.title}</div>
+        <div class="upc-venue"><i class="fa-solid fa-people-group" style="color:var(--orange);font-size:.65rem"></i> ${c.name}</div>
+      </div>
+    </div>`;
+  }).join('') || '<p style="color:var(--text3);font-size:.82rem">No upcoming events.</p>';
+
+  document.getElementById('pageBody').innerHTML = `
+    <div class="welcome">
+      <div>
+        <h2>Good ${greet()}, ${CU.name.split(' ')[0]}! 🎓</h2>
+        <p>${clubs.length} clubs · ${upcoming.length} upcoming events · ${students} students</p>
+      </div>
+      <div style="display:flex;gap:9px;flex-wrap:wrap">
+        <a href="manage-clubs.html" class="btn btn-primary"><i class="fa-solid fa-plus"></i> New Club</a>
+        <a href="clubs.html"        class="btn btn-ghost"><i class="fa-solid fa-people-group"></i> View Clubs</a>
+      </div>
+    </div>
+    <div class="stats-row">
+      <div class="stat"><div class="stat-ico" style="background:rgba(255,107,53,.1);color:var(--orange)"><i class="fa-solid fa-people-group"></i></div><div><div class="stat-val">${clubs.length}</div><div class="stat-lbl">Total Clubs</div></div></div>
+      <div class="stat"><div class="stat-ico" style="background:rgba(6,214,160,.1);color:var(--green)"><i class="fa-solid fa-calendar-days"></i></div><div><div class="stat-val">${evs.length}</div><div class="stat-lbl">Total Events</div></div></div>
+      <div class="stat"><div class="stat-ico" style="background:rgba(72,149,239,.1);color:var(--blue)"><i class="fa-solid fa-ticket"></i></div><div><div class="stat-val">${regs.length}</div><div class="stat-lbl">Registrations</div></div></div>
+      <div class="stat"><div class="stat-ico" style="background:rgba(255,209,102,.1);color:var(--yellow)"><i class="fa-solid fa-user-graduate"></i></div><div><div class="stat-val">${students}</div><div class="stat-lbl">Students</div></div></div>
+    </div>
+    <div class="two-col">
+      <div>
+        <div class="card" style="margin-bottom:20px">
+          <div class="card-head"><span class="sec-title">Upcoming Events</span><a href="events.html" class="btn btn-ghost btn-sm">View All</a></div>
+          <div class="card-body"><div class="upc-list">${upcHtml}</div></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><span class="sec-title">Recent Registrations</span></div>
+          <div class="card-body"><div class="act-log">${recentRegs}</div></div>
+        </div>
+      </div>
+      <div>
+        <div class="card" style="margin-bottom:20px">
+          <div class="card-head"><span class="sec-title">Clubs by Category</span></div>
+          <div class="card-body">${catBars||'<p style="color:var(--text3);font-size:.82rem">No clubs yet.</p>'}</div>
+        </div>
+        <div class="card">
+          <div class="card-head"><span class="sec-title">Quick Actions</span></div>
+          <div class="card-body">
+            <div class="quick-grid">
+              <a href="manage-clubs.html" class="btn btn-primary btn-block btn-sm"><i class="fa-solid fa-plus"></i> New Club</a>
+              <a href="clubs.html"        class="btn btn-ghost btn-block btn-sm"><i class="fa-solid fa-eye"></i> Browse</a>
+              <button class="btn btn-ghost btn-block btn-sm" onclick="openRegistrationsModal()"><i class="fa-solid fa-list-check"></i> Registrations</button>
+              <button class="btn btn-ghost btn-block btn-sm" onclick="openMembershipsModal()"><i class="fa-solid fa-id-card"></i> Members</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+/* ── LEADER DASHBOARD ─────────────────────────────────────── */
+function renderLeader() {
+  // Re-fetch fresh user to get clubId
+  const freshUser = getUserById(CU.id) || CU;
+  const clubId = freshUser.clubId;
+  const club   = clubId ? getClubById(clubId) : null;
+
+  if (!club) {
+    document.getElementById('pageBody').innerHTML = `
+      <div class="welcome" style="flex-direction:column;align-items:flex-start;gap:10px">
+        <h2>Hello, ${CU.name.split(' ')[0]}! 👋</h2>
+        <p>You are registered as a <strong>Club Leader</strong> but haven't been assigned to a club yet.</p>
+        <p style="font-size:.83rem;color:var(--text3)">Please wait for the Admin to assign you to your club, or contact them directly.</p>
+      </div>`;
+    return;
+  }
+
+  const evs     = getClubEvents(clubId);
+  const members = getClubMembers(clubId);
+  const regs    = getRegs().filter(r => evs.some(e => e.id === r.eventId));
+  const t = new Date(); t.setHours(0,0,0,0);
+  const upcoming = evs.filter(e => new Date(e.date) >= t);
+
+  const evCards = evs.slice(0,3).map(e => `
+    <div class="upc-item">
+      <div class="upc-date"><div class="upc-day">${getDayMon(e.date).day}</div><div class="upc-mon">${getDayMon(e.date).mon}</div></div>
+      <div class="upc-info">
+        <div class="upc-name">${e.title}</div>
+        <div class="upc-venue"><i class="fa-solid fa-users" style="color:var(--orange);font-size:.65rem"></i> ${getRegCount(e.id)} registered</div>
+      </div>
+      <a href="manage-clubs.html" class="btn btn-ghost btn-sm"><i class="fa-solid fa-pen"></i></a>
+    </div>`).join('') || '<p style="color:var(--text3);font-size:.82rem">No events yet. <a href="manage-clubs.html" style="color:var(--orange)">Create one →</a></p>';
+
+  const recentMembers = members.slice(-5).reverse().map(m => {
+    const u = getUserById(m.userId) || { name:'?', email:'-' };
+    return `<div class="my-club-card" style="padding:9px 10px">
+      <div class="u-avatar" style="width:30px;height:30px;font-size:.72rem">${getInitials(u.name)}</div>
+      <div class="my-club-info"><div class="my-club-name">${u.name}</div><div class="my-club-stat">${u.email}</div></div>
+      <span class="badge ${m.role==='leader'?'badge-orange':'badge-blue'}">${m.role}</span>
+    </div>`;
+  }).join('') || '<p style="color:var(--text3);font-size:.82rem">No members yet.</p>';
+
+  document.getElementById('pageBody').innerHTML = `
+    <div class="welcome">
+      <div>
+        <h2>Your Club: ${club.name} ${catEmoji(club.category)}</h2>
+        <p>${members.length} members · ${evs.length} events · ${upcoming.length} upcoming</p>
+      </div>
+      <a href="manage-clubs.html" class="btn btn-primary"><i class="fa-solid fa-pen-to-square"></i> Manage Club</a>
+    </div>
+    <div class="stats-row">
+      <div class="stat"><div class="stat-ico" style="background:rgba(255,107,53,.1);color:var(--orange)"><i class="fa-solid fa-users"></i></div><div><div class="stat-val">${members.length}</div><div class="stat-lbl">Members</div></div></div>
+      <div class="stat"><div class="stat-ico" style="background:rgba(6,214,160,.1);color:var(--green)"><i class="fa-solid fa-calendar-days"></i></div><div><div class="stat-val">${evs.length}</div><div class="stat-lbl">Events</div></div></div>
+      <div class="stat"><div class="stat-ico" style="background:rgba(72,149,239,.1);color:var(--blue)"><i class="fa-solid fa-ticket"></i></div><div><div class="stat-val">${regs.length}</div><div class="stat-lbl">Registrations</div></div></div>
+      <div class="stat"><div class="stat-ico" style="background:rgba(255,209,102,.1);color:var(--yellow)"><i class="fa-solid fa-hourglass-half"></i></div><div><div class="stat-val">${upcoming.length}</div><div class="stat-lbl">Upcoming</div></div></div>
+    </div>
+    <div class="two-col">
+      <div>
+        <div class="card">
+          <div class="card-head"><span class="sec-title">Club Events</span><a href="manage-clubs.html" class="btn btn-primary btn-sm"><i class="fa-solid fa-plus"></i> Add Event</a></div>
+          <div class="card-body"><div class="upc-list">${evCards}</div></div>
+        </div>
+      </div>
+      <div>
+        <div class="card">
+          <div class="card-head"><span class="sec-title">Recent Members</span><a href="manage-clubs.html" class="btn btn-ghost btn-sm">View All</a></div>
+          <div class="card-body">${recentMembers}</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+/* ── STUDENT DASHBOARD ────────────────────────────────────── */
+function renderStudent() {
+  const myClubs  = getUserClubs(CU.id);
+  const myRegEvs = getStudentRegisteredEvents(CU.id);
+  const allClubs = getClubs();
+  const t = new Date(); t.setHours(0,0,0,0);
+  const myUpcoming = myRegEvs.filter(e => new Date(e.date) >= t);
+
+  const myClubCards = myClubs.length ? myClubs.map(c => `
+    <div class="my-club-card">
+      <div class="my-club-emoji">${catEmoji(c.category)}</div>
+      <div class="my-club-info">
+        <div class="my-club-name">${c.name}</div>
+        <div class="my-club-stat">${getMemberCount(c.id)} members · ${getClubEvents(c.id).length} events</div>
+      </div>
+      <a href="clubs.html" class="btn btn-ghost btn-sm"><i class="fa-solid fa-arrow-right"></i></a>
+    </div>`).join('')
+    : `<div class="empty" style="padding:20px"><i class="fa-solid fa-people-group"></i><p>Not a member of any club yet.<br><a href="clubs.html" style="color:var(--orange)">Browse clubs →</a></p></div>`;
+
+  const myEvCards = myRegEvs.length ? myRegEvs.slice(0,4).map(e => {
+    const c = getClubById(e.clubId)||{name:''};
+    return `<div class="my-club-card">
+      <div class="my-club-emoji">${catEmoji(c.category||'other')}</div>
+      <div class="my-club-info">
+        <div class="my-club-name">${e.title}</div>
+        <div class="my-club-stat"><i class="fa-solid fa-calendar" style="font-size:.65rem;color:var(--orange)"></i> ${fmtDate(e.date)} · ${c.name}</div>
+      </div>
+    </div>`;
+  }).join('')
+    : `<div class="empty" style="padding:20px"><i class="fa-solid fa-ticket"></i><p>No registered events.<br><a href="events.html" style="color:var(--orange)">Browse events →</a></p></div>`;
+
+  const suggestedClubs = allClubs.filter(c => !isClubMember(CU.id, c.id)).slice(0,3).map(c => `
+    <div class="my-club-card">
+      <div class="my-club-emoji">${catEmoji(c.category)}</div>
+      <div class="my-club-info">
+        <div class="my-club-name">${c.name}</div>
+        <div class="my-club-stat">${getMemberCount(c.id)} members</div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="doJoin('${c.id}')"><i class="fa-solid fa-plus"></i> Join</button>
+    </div>`).join('') || '<p style="color:var(--text3);font-size:.82rem">You\'ve joined all clubs!</p>';
+
+  document.getElementById('pageBody').innerHTML = `
+    <div class="welcome">
+      <div>
+        <h2>Hey ${CU.name.split(' ')[0]}! 👋</h2>
+        <p>You're in <strong>${myClubs.length}</strong> club${myClubs.length!==1?'s':''} · <strong>${myUpcoming.length}</strong> upcoming event${myUpcoming.length!==1?'s':''}</p>
+      </div>
+      <div style="display:flex;gap:9px;flex-wrap:wrap">
+        <a href="clubs.html"  class="btn btn-primary"><i class="fa-solid fa-compass"></i> Explore Clubs</a>
+        <a href="events.html" class="btn btn-ghost"><i class="fa-solid fa-calendar"></i> Events</a>
+      </div>
+    </div>
+    <div class="stats-row" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:22px">
+      <div class="stat"><div class="stat-ico" style="background:rgba(255,107,53,.1);color:var(--orange)"><i class="fa-solid fa-people-group"></i></div><div><div class="stat-val">${myClubs.length}</div><div class="stat-lbl">My Clubs</div></div></div>
+      <div class="stat"><div class="stat-ico" style="background:rgba(6,214,160,.1);color:var(--green)"><i class="fa-solid fa-ticket"></i></div><div><div class="stat-val">${myRegEvs.length}</div><div class="stat-lbl">Registrations</div></div></div>
+      <div class="stat"><div class="stat-ico" style="background:rgba(72,149,239,.1);color:var(--blue)"><i class="fa-solid fa-hourglass-half"></i></div><div><div class="stat-val">${myUpcoming.length}</div><div class="stat-lbl">Upcoming</div></div></div>
+    </div>
+    <div class="two-col">
+      <div>
+        <div class="card" style="margin-bottom:20px" id="myClubs">
+          <div class="card-head"><span class="sec-title"><i class="fa-solid fa-people-group" style="color:var(--orange);margin-right:7px"></i>My Clubs</span><a href="clubs.html" class="btn btn-ghost btn-sm">Browse More</a></div>
+          <div class="card-body">${myClubCards}</div>
+        </div>
+        <div class="card" id="myEvents">
+          <div class="card-head"><span class="sec-title"><i class="fa-solid fa-ticket" style="color:var(--orange);margin-right:7px"></i>My Registered Events</span><a href="events.html" class="btn btn-ghost btn-sm">All Events</a></div>
+          <div class="card-body">${myEvCards}</div>
+        </div>
+      </div>
+      <div>
+        <div class="card">
+          <div class="card-head"><span class="sec-title">Suggested Clubs</span></div>
+          <div class="card-body">${suggestedClubs}</div>
+          <div class="card-foot"><a href="clubs.html" class="btn btn-ghost btn-block btn-sm">View All Clubs</a></div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function doJoin(clubId) {
+  const res = joinClub(CU.id, clubId);
+  if (res.ok) { toast('ok','Joined!','Welcome to the club 🎉'); renderStudent(); }
+  else toast('err','Error', res.msg);
+}
+
+function greet() {
+  const h = new Date().getHours();
+  return h<12?'morning':h<17?'afternoon':'evening';
+}
+</script>
+</body>
+</html>

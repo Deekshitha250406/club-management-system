@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>ClubSpace — Clubs</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+</head>
+<body>
+<div id="toasts"></div>
+<div class="sb-overlay" id="sbOverlay"></div>
+<div class="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="sb-logo"><div class="sb-mark">CS</div><div><div class="sb-title">ClubSpace</div><div class="sb-sub">Club Management</div></div></div>
+    <nav class="sb-nav" id="sbNav"></nav>
+    <div class="sb-foot">
+      <div class="user-row">
+        <div class="u-avatar" id="sbAvatar">?</div>
+        <div class="u-info"><div class="u-name" id="sbName">…</div><div class="u-role" id="sbRole">role</div></div>
+        <button class="icon-btn" id="logoutBtn" title="Logout"><i class="fa-solid fa-right-from-bracket"></i></button>
+      </div>
+    </div>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <div class="tb-left">
+        <button class="icon-btn hamburger" id="hamburger"><i class="fa-solid fa-bars"></i></button>
+        <div><div class="tb-title">Clubs</div><div class="tb-sub" id="tbSub">All college clubs</div></div>
+      </div>
+      <div class="tb-right">
+        <button class="icon-btn" id="themeBtn"></button>
+        <div id="adminAddBtn"></div>
+      </div>
+    </header>
+    <div class="body">
+      <!-- Filter bar -->
+      <div class="filter-bar">
+        <div class="search-wrap"><i class="fa-solid fa-magnifying-glass"></i><input type="text" class="input" id="searchInput" placeholder="Search clubs…" oninput="render()"/></div>
+        <select class="input filter-sel" id="catFilter" onchange="render()">
+          <option value="">All Categories</option>
+          <option value="dance">Dance</option>
+          <option value="music">Music</option>
+          <option value="technical">Technical</option>
+          <option value="sports">Sports</option>
+          <option value="arts">Arts</option>
+          <option value="literary">Literary</option>
+          <option value="social">Social</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="results-count" id="resCount" style="font-size:.8rem;color:var(--text2);margin-bottom:14px"></div>
+      <div id="grid" class="clubs-grid"></div>
+    </div>
+  </div>
+</div>
+
+<script src="js/auth.js"></script>
+<script src="js/clubs.js"></script>
+<script src="js/app.js"></script>
+<script>
+let CU;
+document.addEventListener('DOMContentLoaded', () => {
+  CU = requireAuth();
+  if (!CU) return;
+  initApp(); populateUser(CU); buildNav(CU.role, CU); setActiveNav('clubs');
+  if (CU.role === 'admin') {
+    document.getElementById('adminAddBtn').innerHTML = `<a href="manage-clubs.html" class="btn btn-primary btn-sm"><i class="fa-solid fa-plus"></i> New Club</a>`;
+  }
+  render();
+});
+
+function render() {
+  const search = document.getElementById('searchInput').value;
+  const cat    = document.getElementById('catFilter').value;
+  const grid   = document.getElementById('grid');
+  grid.className = 'clubs-grid';
+  renderSkeletons(grid, 6);
+  setTimeout(() => {
+    const clubs = filterClubs({ search, category: cat });
+    document.getElementById('resCount').textContent = `${clubs.length} club${clubs.length!==1?'s':''} found`;
+    if (!clubs.length) {
+      grid.className = '';
+      grid.innerHTML = `<div class="empty"><i class="fa-solid fa-people-group"></i><h3>No clubs found</h3><p>Try different search terms.</p></div>`;
+      return;
+    }
+    grid.className = 'clubs-grid';
+    grid.innerHTML = clubs.map((c,i) => clubCard(c, i)).join('');
+  }, 280);
+}
+
+function clubCard(c, idx) {
+  const isMem   = CU && isClubMember(CU.id, c.id);
+  const isLeader= CU && (CU.role==='leader' && CU.clubId===c.id);
+  const count   = getMemberCount(c.id);
+  const evCount = getClubEvents(c.id).length;
+  const leader  = c.leaderId ? getUserById(c.leaderId) : null;
+  const imgHtml = c.image ? `<img src="${c.image}" alt="${c.name}" loading="lazy" onerror="this.style.display='none'">` : '';
+
+  let actionBtn = '';
+  if (CU.role === 'admin' || isLeader) {
+    actionBtn = `<a href="manage-clubs.html?id=${c.id}" class="btn btn-ghost btn-sm"><i class="fa-solid fa-pen"></i> Manage</a>`;
+  } else if (CU.role === 'student') {
+    actionBtn = isMem
+      ? `<button class="btn btn-danger btn-sm" onclick="doLeave('${c.id}')"><i class="fa-solid fa-arrow-right-from-bracket"></i> Leave</button>`
+      : `<button class="btn btn-primary btn-sm" onclick="doJoin('${c.id}')"><i class="fa-solid fa-plus"></i> Join</button>`;
+  }
+
+  return `
+    <div class="club-card" style="animation-delay:${idx*0.06}s">
+      <div class="club-banner">
+        ${imgHtml}
+        <span class="club-banner-placeholder" style="display:${c.image?'none':'flex'}">${catEmoji(c.category)}</span>
+        <span class="club-cat-tag ${catClass(c.category)}">${catLabel(c.category)}</span>
+        <span class="club-member-count"><i class="fa-solid fa-users"></i> ${count}</span>
+      </div>
+      <div class="club-body">
+        <div class="club-name">${c.name} ${isMem?'<span class="badge badge-green" style="font-size:.6rem"><i class="fa-solid fa-check"></i> Member</span>':''}</div>
+        <div class="club-desc">${c.description}</div>
+        <div class="club-footer-row">
+          <div>
+            <div class="club-leader"><i class="fa-solid fa-star"></i> ${leader?leader.name:'No leader'}</div>
+            <div style="font-size:.7rem;color:var(--text3);margin-top:3px"><i class="fa-solid fa-calendar-days" style="font-size:.6rem"></i> ${evCount} event${evCount!==1?'s':''}</div>
+          </div>
+          <div style="display:flex;gap:7px">
+            ${actionBtn}
+            <button class="btn btn-ghost btn-sm" onclick="openClubDetail('${c.id}')"><i class="fa-solid fa-eye"></i></button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function doJoin(clubId) {
+  const res = joinClub(CU.id, clubId);
+  if (res.ok) { toast('ok','Joined!','Welcome to the club 🎉'); render(); }
+  else toast('err','Failed', res.msg);
+}
+function doLeave(clubId) {
+  const c = getClubById(clubId);
+  confirmAction(`Leave <strong>${c?.name}</strong>? You'll need to rejoin to access member content.`, () => {
+    leaveClub(CU.id, clubId);
+    toast('info','Left Club','You have left the club.');
+    render();
+  });
+}
+
+function openClubDetail(clubId) {
+  const c = getClubById(clubId);
+  if (!c) return;
+  const leader  = c.leaderId ? getUserById(c.leaderId) : null;
+  const members = getClubMembers(clubId);
+  const evs     = getClubEvents(clubId);
+  const isMem   = CU && isClubMember(CU.id, clubId);
+  const t = new Date(); t.setHours(0,0,0,0);
+  const upcomingEvs = evs.filter(e => new Date(e.date) >= t);
+
+  const memList = members.slice(0,8).map(m => {
+    const u = getUserById(m.userId)||{name:'?',email:'-'};
+    return `<div class="member-row">
+      <div class="m-avatar">${getInitials(u.name)}</div>
+      <div class="m-info"><div class="m-name">${u.name}</div><div class="m-email">${u.email}</div></div>
+      <span class="badge ${m.role==='leader'?'badge-orange':'badge-blue'}">${m.role}</span>
+    </div>`;
+  }).join('') || '<p style="color:var(--text3);font-size:.82rem">No members yet.</p>';
+
+  const evList = upcomingEvs.slice(0,4).map(e => `
+    <div class="upc-item" style="cursor:pointer" onclick="openEventDetail('${e.id}')">
+      <div class="upc-date"><div class="upc-day">${getDayMon(e.date).day}</div><div class="upc-mon">${getDayMon(e.date).mon}</div></div>
+      <div class="upc-info"><div class="upc-name">${e.title}</div><div class="upc-venue">${e.venue}</div></div>
+      ${CU.role==='student' ? (isRegistered(CU.id,e.id)
+        ? '<span class="badge badge-green"><i class="fa-solid fa-check"></i> Registered</span>'
+        : `<button class="btn btn-primary btn-sm" onclick="event.stopPropagation();doReg('${e.id}')">Register</button>`)
+        : ''}
+    </div>`).join('') || '<p style="color:var(--text3);font-size:.82rem">No upcoming events.</p>';
+
+  let joinBtn = '';
+  if (CU.role === 'student') {
+    joinBtn = isMem
+      ? `<button class="btn btn-danger btn-sm" onclick="doLeave('${clubId}');closeModal('clubDetail')"><i class="fa-solid fa-arrow-right-from-bracket"></i> Leave Club</button>`
+      : `<button class="btn btn-primary btn-sm" onclick="doJoin('${clubId}');closeModal('clubDetail')"><i class="fa-solid fa-plus"></i> Join Club</button>`;
+  }
+
+  mkModal('clubDetail', c.name, `
+    ${c.image ? `<img src="${c.image}" alt="${c.name}" style="width:100%;height:180px;object-fit:cover;border-radius:12px;margin-bottom:16px" loading="lazy">` : ''}
+    <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px">
+      <span class="cat-pill ${catClass(c.category)}">${catEmoji(c.category)} ${catLabel(c.category)}</span>
+      ${isMem?'<span class="badge badge-green"><i class="fa-solid fa-check"></i> Member</span>':''}
+      ${leader?`<span class="badge badge-orange"><i class="fa-solid fa-star"></i> Leader: ${leader.name}</span>`:''}
+    </div>
+    <p style="color:var(--text2);font-size:.88rem;line-height:1.7;margin-bottom:18px">${c.description}</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px">
+      <div>
+        <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:10px">Members (${members.length})</div>
+        <div class="member-list">${memList}</div>
+      </div>
+      <div>
+        <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:10px">Upcoming Events (${upcomingEvs.length})</div>
+        <div class="upc-list">${evList}</div>
+      </div>
+    </div>`,
+    `<button class="btn btn-ghost" onclick="closeModal('clubDetail')">Close</button>${joinBtn}`);
+}
+
+var refreshCards = render;
+</script>
+</body>
+</html>

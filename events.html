@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>ClubSpace — Events</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <style>
+    .view-toggle{display:flex;background:var(--bg4);border-radius:var(--r-sm);padding:3px;border:1px solid var(--border)}
+    .vbtn{width:32px;height:32px;border:none;background:transparent;border-radius:5px;color:var(--text2);display:flex;align-items:center;justify-content:center;font-size:.82rem;cursor:pointer;transition:var(--t)}
+    .vbtn.active{background:var(--bg3);color:var(--orange);box-shadow:var(--shadow-sm)}
+    .list-view{display:flex;flex-direction:column;gap:10px}
+    .ev-list-row{display:flex;align-items:center;gap:14px;padding:14px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r-md);transition:var(--ts)}
+    .ev-list-row:hover{border-color:var(--border2);transform:translateX(2px)}
+    .ev-list-thumb{width:58px;height:58px;border-radius:9px;background:var(--bg4);flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:1.5rem}
+    .ev-list-thumb img{width:100%;height:100%;object-fit:cover}
+    .ev-list-info{flex:1;min-width:0}
+    .ev-list-title{font-weight:700;font-size:.92rem;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .ev-list-meta{display:flex;gap:14px;flex-wrap:wrap}
+    .ev-list-meta span{font-size:.72rem;color:var(--text2);display:flex;align-items:center;gap:4px}
+    .ev-list-meta i{color:var(--orange);font-size:.65rem}
+    .ev-list-actions{display:flex;gap:7px;flex-shrink:0}
+  </style>
+</head>
+<body>
+<div id="toasts"></div>
+<div class="sb-overlay" id="sbOverlay"></div>
+<div class="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="sb-logo"><div class="sb-mark">CS</div><div><div class="sb-title">ClubSpace</div><div class="sb-sub">Club Management</div></div></div>
+    <nav class="sb-nav" id="sbNav"></nav>
+    <div class="sb-foot">
+      <div class="user-row">
+        <div class="u-avatar" id="sbAvatar">?</div>
+        <div class="u-info"><div class="u-name" id="sbName">…</div><div class="u-role" id="sbRole">role</div></div>
+        <button class="icon-btn" id="logoutBtn" title="Logout"><i class="fa-solid fa-right-from-bracket"></i></button>
+      </div>
+    </div>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <div class="tb-left">
+        <button class="icon-btn hamburger" id="hamburger"><i class="fa-solid fa-bars"></i></button>
+        <div><div class="tb-title">Events</div><div class="tb-sub">All club events</div></div>
+      </div>
+      <div class="tb-right">
+        <button class="icon-btn" id="themeBtn"></button>
+      </div>
+    </header>
+    <div class="body">
+      <div class="filter-bar">
+        <div class="search-wrap"><i class="fa-solid fa-magnifying-glass"></i><input type="text" class="input" id="searchInput" placeholder="Search events…" oninput="render()"/></div>
+        <select class="input filter-sel" id="clubFilter" onchange="render()"><option value="">All Clubs</option></select>
+        <select class="input filter-sel" id="dateFilter" onchange="render()">
+          <option value="">All Dates</option>
+          <option value="upcoming">Upcoming</option>
+          <option value="week">This Week</option>
+          <option value="past">Past</option>
+        </select>
+        <div class="view-toggle">
+          <button class="vbtn active" id="gBtn" onclick="setView('grid')"><i class="fa-solid fa-grip"></i></button>
+          <button class="vbtn"        id="lBtn" onclick="setView('list')"><i class="fa-solid fa-list"></i></button>
+        </div>
+      </div>
+      <div id="resCount" style="font-size:.8rem;color:var(--text2);margin-bottom:14px"></div>
+      <div id="container"></div>
+    </div>
+  </div>
+</div>
+<script src="js/auth.js"></script>
+<script src="js/clubs.js"></script>
+<script src="js/app.js"></script>
+<script>
+let CU, curView = 'grid';
+
+document.addEventListener('DOMContentLoaded', () => {
+  CU = requireAuth();
+  if (!CU) return;
+  initApp(); populateUser(CU); buildNav(CU.role, CU); setActiveNav('events');
+
+  // Populate club filter
+  const sel = document.getElementById('clubFilter');
+  getClubs().forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.id; opt.textContent = c.name;
+    sel.appendChild(opt);
+  });
+
+  render();
+});
+
+function setView(v) {
+  curView = v;
+  document.getElementById('gBtn').classList.toggle('active', v==='grid');
+  document.getElementById('lBtn').classList.toggle('active', v==='list');
+  render();
+}
+
+function render() {
+  const search = document.getElementById('searchInput').value;
+  const clubId = document.getElementById('clubFilter').value;
+  const date   = document.getElementById('dateFilter').value;
+  const cont   = document.getElementById('container');
+
+  cont.className = curView === 'grid' ? 'events-grid' : 'list-view';
+  renderSkeletons(cont, 6);
+
+  setTimeout(() => {
+    const evs = filterEvents({ search, clubId, date });
+    document.getElementById('resCount').textContent = `${evs.length} event${evs.length!==1?'s':''} found`;
+
+    if (!evs.length) {
+      cont.className = '';
+      cont.innerHTML = `<div class="empty"><i class="fa-solid fa-calendar-xmark"></i><h3>No events found</h3><p>Try adjusting your filters.</p></div>`;
+      return;
+    }
+
+    if (curView === 'grid') {
+      cont.className = 'events-grid';
+      cont.innerHTML = evs.map((e,i) => renderEventCard(e, CU, { showClubChip:true }) ).join('');
+    } else {
+      cont.className = 'list-view';
+      cont.innerHTML = evs.map(e => renderListRow(e)).join('');
+    }
+  }, 280);
+}
+
+function renderListRow(ev) {
+  const club  = getClubById(ev.clubId)||{name:''};
+  const reg   = CU && isRegistered(CU.id, ev.id);
+  const past  = isPast(ev.date);
+  const count = getRegCount(ev.id);
+  const canEdit = CU && (CU.role==='admin' || (CU.role==='leader' && CU.clubId===ev.clubId));
+
+  let regBtn = '';
+  if (CU?.role==='student') {
+    if (past) regBtn = `<button class="btn btn-ghost btn-sm" disabled>Ended</button>`;
+    else if (reg) regBtn = `<button class="btn btn-danger btn-sm" onclick="doUnreg('${ev.id}')">Unregister</button>`;
+    else regBtn = `<button class="btn btn-primary btn-sm" onclick="doReg('${ev.id}')"><i class="fa-solid fa-plus"></i> Register</button>`;
+  }
+  const editBtns = canEdit ? `
+    <button class="btn btn-ghost btn-sm" onclick="openEditEventModal('${ev.id}')"><i class="fa-solid fa-pen"></i></button>
+    <button class="btn btn-danger btn-sm" onclick="confirmDeleteEvent('${ev.id}')"><i class="fa-solid fa-trash"></i></button>` : '';
+
+  return `
+    <div class="ev-list-row" id="ecard_${ev.id}">
+      <div class="ev-list-thumb">
+        ${ev.image ? `<img src="${ev.image}" alt="${ev.title}" onerror="this.style.display='none'" loading="lazy">` : catEmoji(club.category||'other')}
+      </div>
+      <div class="ev-list-info">
+        <div class="ev-list-title">${ev.title} ${reg?'<span class="badge badge-green" style="font-size:.6rem"><i class="fa-solid fa-check"></i> Registered</span>':''}</div>
+        <div class="ev-list-meta">
+          <span><i class="fa-solid fa-people-group"></i>${club.name}</span>
+          <span><i class="fa-solid fa-calendar"></i>${fmtDate(ev.date)}</span>
+          <span><i class="fa-solid fa-clock"></i>${fmtTime(ev.time)}</span>
+          <span><i class="fa-solid fa-location-dot"></i>${ev.venue}</span>
+          <span><i class="fa-solid fa-users"></i>${count}${ev.maxSeats?' / '+ev.maxSeats:''}</span>
+        </div>
+      </div>
+      <div class="ev-list-actions">
+        ${regBtn}${editBtns}
+        <button class="btn btn-ghost btn-sm" onclick="openEventDetail('${ev.id}')"><i class="fa-solid fa-eye"></i></button>
+      </div>
+    </div>`;
+}
+
+var refreshCards = render;
+</script>
+</body>
+</html>
